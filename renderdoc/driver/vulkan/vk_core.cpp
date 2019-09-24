@@ -1171,7 +1171,7 @@ VkResult WrappedVulkan::FilterDeviceExtensionProperties(VkPhysicalDevice physDev
   vkr = ObjDisp(physDev)->EnumerateDeviceExtensionProperties(Unwrap(physDev), pLayerName, &numExts,
                                                              &exts[0]);
 
-  if(vkr != VK_SUCCESS)
+  if(vkr != VK_SUCCESS && vkr != VK_INCOMPLETE)
     return vkr;
 
   // filter the list of extensions to only the ones we support.
