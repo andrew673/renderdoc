@@ -266,6 +266,38 @@ bool WrappedVulkan::Serialise_vkAllocateMemory(SerialiserType &ser, VkDevice dev
     // appropriate index on replay
     AllocateInfo.memoryTypeIndex = m_PhysicalDeviceData.memIdxMap[AllocateInfo.memoryTypeIndex];
 
+    // do a last check to completely make sure we meet memory requirements for size
+    {
+      VkBufferCreateInfo bufInfo = {
+          VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+          NULL,
+          0,
+          AllocateInfo.allocationSize,
+          VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+      };
+
+      // since this is very short lived, it's not wrapped
+      VkBuffer buf = VK_NULL_HANDLE;
+
+      VkResult vkr = ObjDisp(device)->CreateBuffer(Unwrap(device), &bufInfo, NULL, &buf);
+      RDCASSERTEQUAL(vkr, VK_SUCCESS);
+
+      if(vkr == VK_SUCCESS && buf != VK_NULL_HANDLE)
+      {
+        VkMemoryRequirements mrq = {0};
+        ObjDisp(device)->GetBufferMemoryRequirements(Unwrap(device), buf, &mrq);
+
+        RDCASSERTMSG("memory requirements less than desired size", mrq.size >= bufInfo.size, mrq.size,
+                     bufInfo.size);
+
+        // round up allocation size to allow creation of buffers
+        if(mrq.size >= bufInfo.size)
+          AllocateInfo.allocationSize = mrq.size;
+      }
+
+      ObjDisp(device)->DestroyBuffer(Unwrap(device), buf, NULL);
+    }
+
     VkMemoryAllocateInfo patched = AllocateInfo;
 
     byte *tempMem = GetTempMemory(GetNextPatchSize(patched.pNext));
